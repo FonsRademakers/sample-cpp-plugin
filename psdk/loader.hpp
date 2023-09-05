@@ -13,6 +13,9 @@
 #elif defined(__unix__)
   // APIs: dlopen, dlclose, dlopen 
   #include <dlfcn.h>
+#elif defined(__APPLE__)
+  // APIs: dlopen, dlclose, dlopen 
+  #include <dlfcn.h>
 #else
   #error "Not supported operating system"
 #endif 
@@ -133,15 +136,16 @@ public:
 	std::string GetExtension() const 
 	{
 	   std::string ext;
-	   #if defined (_WIN32) 	     
+#if defined (_WIN32) 	     
 		 ext = ".dll"; // Windows 
-	   #elif defined(__unix__) && !defined(__apple__)
+#elif defined(__unix__) && !defined(__APPLE__)
 		 ext = ".so";  // Linux, BDS, Solaris and so on. 
-       #elif defined(__apple__)
-		 ext = ".dylib"; // MacOSX 
-	   #else 	 
- 	     #error "Not implemented for this platform"
-	   #endif 
+#elif defined(__APPLE__)
+		 //ext = ".dylib"; // MacOSX 
+     ext = ".so";
+#else 	 
+  #error "Not implemented for this platform"
+#endif 
 		return ext;
 	}
 
