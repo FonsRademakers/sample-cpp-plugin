@@ -42,27 +42,32 @@ public:
 	/** @brief Pointer to shared library factory class returned by the DLL entry-point function */
 	IPluginFactory* m_info  = nullptr;
 
-	Plugin()
-	{
-	}
+	Plugin() { }
 
 	explicit Plugin(std::string file)
 	{
 		m_file = std::move(file);
-        #if !defined(_WIN32)
-		  m_hnd = ::dlopen(m_file.c_str(), RTLD_LAZY);
-		#else
-		  m_hnd  = (void*) ::LoadLibraryA(m_file.c_str());
-        #endif 
-		m_isLoaded = true;
+#if defined(__unix__)
+		m_hnd = ::dlopen(m_file.c_str(), RTLD_LAZY);
+#elif defined(__APPLE__)
+		m_hnd = ::dlopen(m_file.c_str(), RTLD_LAZY);
+    if (!m_hnd) {
+      // try .so extension
+      m_file = m_file.substr(0,m_file.find_last_of('.')) + ".so";
+      m_hnd = ::dlopen(m_file.c_str(), RTLD_LAZY);
+    }
+#elif defined(_WIN32)
+		m_hnd  = (void*) ::LoadLibraryA(m_file.c_str());
+#endif 
 		assert(m_hnd != nullptr);
-        #if !defined(_WIN32)
-		  auto dllEntryPoint =
+		m_isLoaded = true;
+#if !defined(_WIN32)
+		auto dllEntryPoint =
 			  reinterpret_cast<GetPluginInfo_fp>(dlsym(m_hnd, DLLEntryPointName));
-		#else
-		  auto dllEntryPoint =
+#else
+		auto dllEntryPoint =
 			  reinterpret_cast<GetPluginInfo_fp>(GetProcAddress((HMODULE) m_hnd, DLLEntryPointName));
-        #endif 
+#endif 
 		assert(dllEntryPoint != nullptr);
 		// Retrieve plugin metadata from DLL entry-point function 
 		m_info = dllEntryPoint();
@@ -77,10 +82,10 @@ public:
 
 	Plugin(Plugin&& rhs) 
 	{
-		m_isLoaded	= std::move(rhs.m_isLoaded);
-		m_hnd		= std::move(rhs.m_hnd);
-		m_file		= std::move(rhs.m_file);
-		m_info      = std::move(rhs.m_info);
+		m_isLoaded = std::move(rhs.m_isLoaded);
+		m_hnd      = std::move(rhs.m_hnd);
+		m_file     = std::move(rhs.m_file);
+		m_info     = std::move(rhs.m_info);
 	} 
 	Plugin& operator=(Plugin&& rhs)
 	{
@@ -108,12 +113,12 @@ public:
 	
 	void Unload()
 	{
-		if(m_hnd != nullptr) {
-            #if !defined(_WIN32)
-			   ::dlclose(m_hnd);
-			#else
-			   ::FreeLibrary((HMODULE) m_hnd);
-			#endif 
+		if (m_hnd != nullptr) {
+#if !defined(_WIN32)
+			::dlclose(m_hnd);
+#else
+			::FreeLibrary((HMODULE) m_hnd);
+#endif 
 			m_hnd = nullptr;
 			m_isLoaded = false;
 		}
@@ -130,21 +135,19 @@ public:
 	// Plugins database 
 	PluginMap m_plugindb;
 	
-	PluginManager()
-	{								
-	}
+	PluginManager()	{ }
+
 	std::string GetExtension() const 
 	{
-	   std::string ext;
+	  std::string ext;
 #if defined (_WIN32) 	     
-		 ext = ".dll"; // Windows 
+	  ext = ".dll"; // Windows 
 #elif defined(__unix__) && !defined(__APPLE__)
-		 ext = ".so";  // Linux, BDS, Solaris and so on. 
+		ext = ".so";  // Linux, BDS, Solaris and so on. 
 #elif defined(__APPLE__)
-		 //ext = ".dylib"; // MacOSX 
-     ext = ".so";
+	  ext = ".dylib"; // MacOSX
 #else 	 
-  #error "Not implemented for this platform"
+    #error "Not implemented for this platform"
 #endif 
 		return ext;
 	}
